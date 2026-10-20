@@ -160,8 +160,15 @@ func (q *quick) cmdList() error {
 	if err != nil {
 		return err
 	}
-	for _, e := range ix.Entries() {
-		fmt.Fprintf(q.stdout, "%-28s %s\n", strings.Join(e.Names(), ", "), e.Summary)
+	entries := ix.Entries()
+	names := make([]string, len(entries))
+	width := 0
+	for i, e := range entries {
+		names[i] = strings.Join(e.Names(), ", ")
+		width = max(width, len(names[i]))
+	}
+	for i, e := range entries {
+		fmt.Fprintf(q.stdout, "%-*s  %s\n", width, names[i], e.Summary)
 	}
 	return nil
 }
