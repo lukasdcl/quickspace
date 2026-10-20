@@ -62,8 +62,8 @@ type env struct {
 	catalogue string
 }
 
-// newEnv creates a fixture catalogue from apps (name -> source) and a quick
-// home that shares the cached runtime.
+// newEnv creates a fixture catalogue from apps (file stem -> source) and a
+// quick home that shares the cached runtime.
 func newEnv(t *testing.T, apps map[string]string) *env {
 	t.Helper()
 	if testing.Short() {
@@ -97,11 +97,15 @@ func newEnv(t *testing.T, apps map[string]string) *env {
 		t.Fatal(err)
 	}
 	var entries []catalogue.Entry
-	for name, src := range apps {
-		if err := os.WriteFile(filepath.Join(e.catalogue, "apps", name+".ts"), []byte(src), 0o644); err != nil {
+	for stem, src := range apps {
+		name, aliases, err := catalogue.ParseNames(stem)
+		if err != nil {
 			t.Fatal(err)
 		}
-		entries = append(entries, catalogue.Entry{Name: name, SHA256: sha256Hex([]byte(src)), Summary: "fixture " + name})
+		if err := os.WriteFile(filepath.Join(e.catalogue, "apps", stem+".ts"), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		entries = append(entries, catalogue.Entry{Name: name, Aliases: aliases, SHA256: sha256Hex([]byte(src)), Summary: "fixture " + name})
 	}
 	if err := os.WriteFile(filepath.Join(e.catalogue, "index.tsv"), catalogue.FormatIndex(entries), 0o644); err != nil {
 		t.Fatal(err)
@@ -151,6 +155,44 @@ func TestRunsApp(t *testing.T) {
 	out, _ = e.run("info", "billionaire-calculator")
 	if !strings.Contains(out, sha256Hex([]byte(billionaireCalculator(t)))) {
 		t.Errorf("info output:\n%s", out)
+	}
+}
+
+func TestRunsAppByAlias(t *testing.T) {
+	e := newEnv(t, map[string]string{"greet.hello.hi": `console.log("hi " + Deno.args.join(" "));`})
+	for _, name := range []string{"greet", "hello", "hi"} {
+		out, code := e.run(name, "there")
+		if code != 0 || !strings.Contains(out, "hi there") {
+			t.Errorf("%s: exit %d, output:\n%s", name, code, out)
+		}
+	}
+	out, _ := e.run("list")
+	if !strings.Contains(out, "greet, hello, hi") {
+		t.Errorf("list output:\n%s", out)
+	}
+	out, _ = e.run("info", "hi")
+	if !strings.Contains(out, "name:     greet") || !strings.Contains(out, "aliases:  hello, hi") {
+		t.Errorf("info output:\n%s", out)
+	}
+}
+
+func TestForgivesTypos(t *testing.T) {
+	e := newEnv(t, map[string]string{
+		"billionaire-calculator": billionaireCalculator(t),
+		"moon":                   `console.log("moon");`,
+	})
+	for _, name := range []string{"billionairecalculator", "billionare-calculator"} {
+		out, code := e.run(name, "150m", "220bn")
+		if code != 0 || !strings.Contains(out, "0.068%") {
+			t.Errorf("%s: exit %d, output:\n%s", name, code, out)
+		}
+		if name != "billionairecalculator" && !strings.Contains(out, "running billionaire-calculator") {
+			t.Errorf("%s: guess not reported:\n%s", name, out)
+		}
+	}
+	out, code := e.run("moom")
+	if code != 1 || !strings.Contains(out, "did you mean moon?") {
+		t.Errorf("moom: exit %d, output:\n%s", code, out)
 	}
 }
 

@@ -48,6 +48,11 @@ quick clean             Remove cached apps (the runtime is kept)
 quick version           Show quick's version and the pinned runtime
 ```
 
+Names are matched without their hyphens, so `quick billionairecalculator`
+works. A small typo in a longer name runs the app it was clearly meant for
+and says so; when the intent is less clear, quick suggests names instead of
+guessing.
+
 ## How it fits together
 
 `quick` itself never runs app code. It is the launcher: it resolves a name
@@ -61,8 +66,8 @@ internal/catalogue/        Index and lock formats, name rules, app lint
 internal/fetch/            HTTPS-only downloads with size limits and atomic writes
 internal/deno/             Platform detection, runtime install, sandbox flags
 catalogue/
-  apps/<name>.ts           One self-contained file per app
-  index.tsv                Name, SHA-256 and summary of every app (generated)
+  apps/<names>.ts          One self-contained file per app
+  index.tsv                Names, SHA-256 and summary of every app (generated)
   runtime.lock             Pinned Deno version and per-platform SHA-256 (generated)
 scripts/release.sh         Cross-compile release builds into dist/
 ```
@@ -70,7 +75,10 @@ scripts/release.sh         Cross-compile release builds into dist/
 ## Adding an app
 
 1. Add `catalogue/apps/<name>.ts`. The name may contain lowercase letters,
-   digits and hyphens, and must not be one of quick's subcommands.
+   digits and hyphens, and must not be one of quick's subcommands. To give
+   an app more than one name, list them all in the file name separated by
+   dots: `pomo.pomodoro.ts` runs as either `quick pomo` or `quick pomodoro`,
+   with the first as its main name.
 2. The first line must be `// summary: <one line>`; `quick list` shows it.
 3. The file must be self-contained: no imports, `eval`, `Function` or
    workers. Read input from `Deno.args` or `prompt()`; write with
