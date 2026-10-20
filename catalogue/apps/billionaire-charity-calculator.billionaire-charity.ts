@@ -1,8 +1,8 @@
 // summary: Put a billionaire's donation in perspective against your own wealth
 //
 // Usage:
-//   quick billionaire-calculator                     (asks interactively)
-//   quick billionaire-calculator <donation> <their-net-worth> [your-net-worth]
+//   quick billionaire-charity    (asks interactively)
+//   quick billionaire-charity <donation> <their-net-worth> [your-net-worth]
 //
 // Amounts accept plain numbers, commas, a leading currency symbol and the
 // suffixes k, m, bn and tn: "150m", "£220bn", "1,500,000".
@@ -80,7 +80,7 @@ function main(args: string[]): void {
 
   if (args.length > 0) {
     if (args.length < 2 || args.length > 3) {
-      fail("Usage: billionaire-calculator <donation> <their-net-worth> [your-net-worth]");
+      fail("Usage: billionaire-charity <donation> <their-net-worth> [your-net-worth]");
     }
     [donation, netWorth] = [parseAmount(args[0]), parseAmount(args[1])];
     if (donation === null || netWorth === null) fail("Couldn't read those amounts.");

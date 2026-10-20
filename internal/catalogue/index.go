@@ -83,7 +83,7 @@ func ParseIndex(data []byte) (*Index, error) {
 }
 
 // Lookup returns the entry for name, which may be an alias. Hyphens are
-// ignored, so "billionairecalculator" finds "billionaire-calculator".
+// ignored, so "billionairecharity" finds "billionaire-charity".
 func (ix *Index) Lookup(name string) (Entry, bool) {
 	i, ok := ix.byName[Normalize(name)]
 	if !ok {
