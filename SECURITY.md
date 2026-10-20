@@ -57,5 +57,6 @@ supported operating system, and check that all fail.
 
 ## Reporting a problem
 
-Open an issue, or for anything that should not be public, contact the
-maintainer directly.
+For a security problem, use **Report a vulnerability** on the repository's
+Security tab, which sends a private report. Anything else can go in an
+ordinary issue.
