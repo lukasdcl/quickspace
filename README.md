@@ -11,9 +11,12 @@ For someone worth 300,000, that's like giving 205.
 
 `quick` fetches an app from a curated catalogue, checks it against the
 catalogue's checksum, and runs it in a sandbox with no access to the network,
-the file system, environment variables or other programs. Apps are single
-TypeScript files of a few kilobytes, so after the first run they start in
-well under a tenth of a second.
+the file system, environment variables or other programs. Every run reads
+the catalogue's index, so a new or changed app is available the moment it
+is published. Apps are single TypeScript files of a few kilobytes, kept
+under their checksums, so one is downloaded again only when it changes. If
+the catalogue cannot be reached, `quick` says so and uses the index saved by
+its last run.
 
 Runs on macOS, Linux and Windows, on both x86-64 and ARM.
 
@@ -43,7 +46,7 @@ invocation. `file://` URLs work for local catalogues.
 quick <app> [args...]   Run an app from the catalogue
 quick list              List available apps
 quick info <app>        Show an app's description and checksum
-quick update            Refresh the catalogue index and runtime pin
+quick update            Fetch the catalogue without running anything
 quick clean             Remove cached apps (the runtime is kept)
 quick version           Show quick's version and the pinned runtime
 ```
@@ -94,7 +97,7 @@ go test ./...
 ```
 
 Commit `catalogue/runtime.lock` once the tests pass. Clients pick up the new
-version on their next `quick update`.
+version on their next run.
 
 ## Development
 

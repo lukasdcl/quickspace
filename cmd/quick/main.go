@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/lukasdcl/quickspace/internal/catalogue"
 	"github.com/lukasdcl/quickspace/internal/deno"
@@ -33,7 +34,7 @@ const usage = `Usage:
   quick <app> [args...]   Run an app from the catalogue
   quick list              List available apps
   quick info <app>        Show an app's description and checksum
-  quick update            Refresh the catalogue index and runtime pin
+  quick update            Fetch the catalogue without running anything
   quick clean             Remove cached apps (the runtime is kept)
   quick version           Show quick's version and the pinned runtime
   quick help              Show this message
@@ -63,6 +64,7 @@ func main() {
 }
 
 type quick struct {
+	synced bool // catalogue fetched during this run
 	home   string
 	fetch  *fetch.Client
 	stdout io.Writer
@@ -243,8 +245,9 @@ func appURL(base string, e catalogue.Entry) string {
 	return base + "/apps/" + e.File()
 }
 
-// refresh downloads index.tsv and runtime.lock. Both are parsed before either
-// replaces the cached copy, so a bad download never displaces a good one.
+// refresh downloads index.tsv and runtime.lock. Both are fetched together
+// and parsed before either replaces the saved copy, so a bad download never
+// displaces a good one.
 func (q *quick) refresh() error {
 	base, err := q.catalogueURL()
 	if err != nil {
@@ -258,19 +261,32 @@ func (q *quick) refresh() error {
 		{"index.tsv", maxIndexSize, func(b []byte) error { _, err := catalogue.ParseIndex(b); return err }},
 		{"runtime.lock", maxLockSize, func(b []byte) error { _, err := catalogue.ParseLock(b); return err }},
 	}
-	for _, f := range files {
-		staged := q.path("catalogue", f.name+".new")
-		if err := q.fetch.ToFile(base+"/"+f.name, staged, f.limit); err != nil {
-			return err
+	errs := make([]error, len(files))
+	var wg sync.WaitGroup
+	for i, f := range files {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			staged := q.path("catalogue", f.name+".new")
+			if err := q.fetch.ToFile(base+"/"+f.name, staged, f.limit); err != nil {
+				errs[i] = err
+				return
+			}
+			data, err := os.ReadFile(staged)
+			if err == nil {
+				err = f.parse(data)
+			}
+			if err != nil {
+				errs[i] = fmt.Errorf("catalogue at %s is invalid: %w", base, err)
+			}
+		}()
+	}
+	wg.Wait()
+	if err := errors.Join(errs...); err != nil {
+		for _, f := range files {
+			os.Remove(q.path("catalogue", f.name+".new"))
 		}
-		data, err := os.ReadFile(staged)
-		if err == nil {
-			err = f.parse(data)
-		}
-		if err != nil {
-			os.Remove(staged)
-			return fmt.Errorf("catalogue at %s is invalid: %w", base, err)
-		}
+		return err
 	}
 	for _, f := range files {
 		if err := os.Rename(q.path("catalogue", f.name+".new"), q.path("catalogue", f.name)); err != nil {
@@ -280,17 +296,27 @@ func (q *quick) refresh() error {
 	return nil
 }
 
-func (q *quick) ensureCatalogue() error {
-	for _, name := range []string{"index.tsv", "runtime.lock"} {
-		if _, err := os.Stat(q.path("catalogue", name)); err != nil {
-			return q.refresh()
-		}
+// sync fetches the catalogue once per run, so a new or changed app is
+// picked up the moment it is published. The copy saved by an earlier run is
+// used only when the catalogue cannot be reached, and quick says so.
+func (q *quick) sync() error {
+	if q.synced {
+		return nil
 	}
+	if err := q.refresh(); err != nil {
+		for _, name := range []string{"index.tsv", "runtime.lock"} {
+			if _, statErr := os.Stat(q.path("catalogue", name)); statErr != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(q.stderr, "quick: %v\nquick: using the catalogue saved by an earlier run\n", err)
+	}
+	q.synced = true
 	return nil
 }
 
 func (q *quick) index() (*catalogue.Index, error) {
-	if err := q.ensureCatalogue(); err != nil {
+	if err := q.sync(); err != nil {
 		return nil, err
 	}
 	data, err := os.ReadFile(q.path("catalogue", "index.tsv"))
@@ -301,7 +327,7 @@ func (q *quick) index() (*catalogue.Index, error) {
 }
 
 func (q *quick) lock() (*catalogue.Lock, error) {
-	if err := q.ensureCatalogue(); err != nil {
+	if err := q.sync(); err != nil {
 		return nil, err
 	}
 	return q.cachedLock()
@@ -315,22 +341,11 @@ func (q *quick) cachedLock() (*catalogue.Lock, error) {
 	return catalogue.ParseLock(data)
 }
 
-// lookup resolves an app, refreshing the index once if the name is unknown
-// so that newly published apps work without an explicit `quick update`.
-// Only then does it fall back to guessing at a typo, so an exact name always
-// wins over a near one.
+// lookup resolves an app by name or alias, and only then guesses at a typo,
+// so an exact name always wins over a near one.
 func (q *quick) lookup(name string) (catalogue.Entry, error) {
 	ix, err := q.index()
 	if err != nil {
-		return catalogue.Entry{}, err
-	}
-	if e, ok := ix.Lookup(name); ok {
-		return e, nil
-	}
-	if err := q.refresh(); err != nil {
-		return catalogue.Entry{}, err
-	}
-	if ix, err = q.index(); err != nil {
 		return catalogue.Entry{}, err
 	}
 	if e, ok := ix.Lookup(name); ok {

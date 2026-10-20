@@ -96,13 +96,29 @@ func newEnv(t *testing.T, apps map[string]string) *env {
 	if err := os.WriteFile(filepath.Join(e.catalogue, "runtime.lock"), lock, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	e.publish(apps)
+	return e
+}
+
+// publish replaces the fixture catalogue's apps (file stem -> source) and
+// rewrites its index, as pushing a change to the catalogue would.
+func (e *env) publish(apps map[string]string) {
+	t := e.t
+	t.Helper()
+	dir := filepath.Join(e.catalogue, "apps")
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	var entries []catalogue.Entry
 	for stem, src := range apps {
 		name, aliases, err := catalogue.ParseNames(stem)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(e.catalogue, "apps", stem+".ts"), []byte(src), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, stem+".ts"), []byte(src), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		entries = append(entries, catalogue.Entry{Name: name, Aliases: aliases, SHA256: sha256Hex([]byte(src)), Summary: "fixture " + name})
@@ -110,7 +126,6 @@ func newEnv(t *testing.T, apps map[string]string) *env {
 	if err := os.WriteFile(filepath.Join(e.catalogue, "index.tsv"), catalogue.FormatIndex(entries), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return e
 }
 
 func (e *env) run(args ...string) (string, int) {
@@ -155,6 +170,33 @@ func TestRunsApp(t *testing.T) {
 	out, _ = e.run("info", "billionaire-calculator")
 	if !strings.Contains(out, sha256Hex([]byte(billionaireCalculator(t)))) {
 		t.Errorf("info output:\n%s", out)
+	}
+}
+
+// Every run reads the published catalogue, so changes reach users without
+// a `quick update`, and the saved copy is only a fallback for when the
+// catalogue cannot be reached.
+func TestFollowsPublishedCatalogue(t *testing.T) {
+	e := newEnv(t, map[string]string{"greet": `console.log("hello v1");`})
+	if out, code := e.run("greet"); code != 0 || !strings.Contains(out, "hello v1") {
+		t.Fatalf("first run: exit %d, output:\n%s", code, out)
+	}
+
+	e.publish(map[string]string{
+		"greet":        `console.log("hello v2");`,
+		"moneyconvert": `console.log("converted");`,
+	})
+	if out, code := e.run("greet"); code != 0 || !strings.Contains(out, "hello v2") {
+		t.Errorf("changed app: exit %d, output:\n%s", code, out)
+	}
+	if out, code := e.run("moneyconvert"); code != 0 || !strings.Contains(out, "converted") {
+		t.Errorf("new app: exit %d, output:\n%s", code, out)
+	}
+
+	e.catalogue = filepath.Join(t.TempDir(), "unreachable")
+	out, code := e.run("greet")
+	if code != 0 || !strings.Contains(out, "hello v2") || !strings.Contains(out, "saved by an earlier run") {
+		t.Errorf("offline: exit %d, output:\n%s", code, out)
 	}
 }
 
