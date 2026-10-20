@@ -159,7 +159,7 @@ func (q *quick) cmdList() error {
 		return err
 	}
 	for _, e := range ix.Entries() {
-		fmt.Fprintf(q.stdout, "%-28s %s\n", e.Name, e.Summary)
+		fmt.Fprintf(q.stdout, "%-28s %s\n", strings.Join(e.Names(), ", "), e.Summary)
 	}
 	return nil
 }
@@ -176,8 +176,12 @@ func (q *quick) cmdInfo(name string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(q.stdout, "name:     %s\nsummary:  %s\nsha256:   %s\nsource:   %s\n",
-		e.Name, e.Summary, e.SHA256, appURL(base, e.Name))
+	fmt.Fprintf(q.stdout, "name:     %s\n", e.Name)
+	if len(e.Aliases) > 0 {
+		fmt.Fprintf(q.stdout, "aliases:  %s\n", strings.Join(e.Aliases, ", "))
+	}
+	fmt.Fprintf(q.stdout, "summary:  %s\nsha256:   %s\nsource:   %s\n",
+		e.Summary, e.SHA256, appURL(base, e))
 	return nil
 }
 
@@ -235,8 +239,8 @@ func runtimeBaseURL() string {
 	return deno.DefaultBaseURL
 }
 
-func appURL(base, name string) string {
-	return base + "/apps/" + name + ".ts"
+func appURL(base string, e catalogue.Entry) string {
+	return base + "/apps/" + e.File()
 }
 
 // refresh downloads index.tsv and runtime.lock. Both are parsed before either
@@ -313,6 +317,8 @@ func (q *quick) cachedLock() (*catalogue.Lock, error) {
 
 // lookup resolves an app, refreshing the index once if the name is unknown
 // so that newly published apps work without an explicit `quick update`.
+// Only then does it fall back to guessing at a typo, so an exact name always
+// wins over a near one.
 func (q *quick) lookup(name string) (catalogue.Entry, error) {
 	ix, err := q.index()
 	if err != nil {
@@ -330,6 +336,14 @@ func (q *quick) lookup(name string) (catalogue.Entry, error) {
 	if e, ok := ix.Lookup(name); ok {
 		return e, nil
 	}
+	match, suggestions := ix.Guess(name)
+	if match != nil {
+		fmt.Fprintf(q.stderr, "quick: no app named %q, running %s\n", name, match.Name)
+		return *match, nil
+	}
+	if len(suggestions) > 0 {
+		return catalogue.Entry{}, fmt.Errorf("no app named %q; did you mean %s?", name, strings.Join(suggestions, ", "))
+	}
 	return catalogue.Entry{}, fmt.Errorf("no app named %q (try: quick list)", name)
 }
 
@@ -343,7 +357,7 @@ func (q *quick) ensureApp(e catalogue.Entry) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := q.fetch.ToFile(appURL(base, e.Name), path, maxAppSize); err != nil {
+		if err := q.fetch.ToFile(appURL(base, e), path, maxAppSize); err != nil {
 			return "", err
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 )
 
 var (
@@ -41,4 +42,10 @@ func ValidateNewName(name string) error {
 
 func validSHA256(s string) bool {
 	return sha256Pattern.MatchString(s)
+}
+
+// Normalize returns the form of name used for matching. Two names with the
+// same normal form are the same app as far as lookup is concerned.
+func Normalize(name string) string {
+	return strings.ReplaceAll(name, "-", "")
 }

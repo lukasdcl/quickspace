@@ -2,3 +2,4 @@
 /.e2e-cache/
 .DS_Store
 /NOTES.local.md
+push.sh

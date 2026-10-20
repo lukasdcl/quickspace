@@ -74,12 +74,19 @@ func BuildIndex(appsDir string) ([]byte, error) {
 
 	var entries []Entry
 	var problems []string
+	owner := map[string]string{} // normalised name or alias -> file that claims it
 	for _, path := range paths {
-		name := strings.TrimSuffix(filepath.Base(path), ".ts")
-		e, err := buildEntry(name, path)
+		file := filepath.Base(path)
+		e, err := buildEntry(strings.TrimSuffix(file, ".ts"), path)
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("%s: %v", name, err))
+			problems = append(problems, fmt.Sprintf("%s: %v", file, err))
 			continue
+		}
+		for _, n := range e.Names() {
+			if other, taken := owner[Normalize(n)]; taken {
+				problems = append(problems, fmt.Sprintf("%s: name %q is already used by %s", file, n, other))
+			}
+			owner[Normalize(n)] = file
 		}
 		entries = append(entries, e)
 	}
@@ -89,9 +96,15 @@ func BuildIndex(appsDir string) ([]byte, error) {
 	return FormatIndex(entries), nil
 }
 
-func buildEntry(name, path string) (Entry, error) {
-	if err := ValidateNewName(name); err != nil {
+func buildEntry(stem, path string) (Entry, error) {
+	name, aliases, err := ParseNames(stem)
+	if err != nil {
 		return Entry{}, err
+	}
+	for _, n := range append([]string{name}, aliases...) {
+		if err := ValidateNewName(n); err != nil {
+			return Entry{}, err
+		}
 	}
 	src, err := os.ReadFile(path)
 	if err != nil {
@@ -110,5 +123,5 @@ func buildEntry(name, path string) (Entry, error) {
 		return Entry{}, err
 	}
 	sum := sha256.Sum256(src)
-	return Entry{Name: name, SHA256: hex.EncodeToString(sum[:]), Summary: summary}, nil
+	return Entry{Name: name, Aliases: aliases, SHA256: hex.EncodeToString(sum[:]), Summary: summary}, nil
 }
