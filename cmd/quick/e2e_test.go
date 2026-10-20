@@ -143,7 +143,7 @@ func (e *env) run(args ...string) (string, int) {
 }
 
 func billionaireCalculator(t *testing.T) string {
-	src, err := os.ReadFile(filepath.Join("..", "..", "catalogue", "apps", "billionaire-calculator.ts"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "catalogue", "apps", "billionaire-charity-calculator.billionaire-charity.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,23 +151,23 @@ func billionaireCalculator(t *testing.T) string {
 }
 
 func TestRunsApp(t *testing.T) {
-	e := newEnv(t, map[string]string{"billionaire-calculator": billionaireCalculator(t)})
+	e := newEnv(t, map[string]string{"billionaire-charity-calculator": billionaireCalculator(t)})
 
-	out, code := e.run("billionaire-calculator", "150m", "220bn", "300k")
+	out, code := e.run("billionaire-charity-calculator", "150m", "220bn", "300k")
 	if code != 0 || !strings.Contains(out, "0.068% of a 220 billion fortune") || !strings.Contains(out, "like giving 205") {
 		t.Errorf("exit %d, output:\n%s", code, out)
 	}
 
-	out, code = e.run("billionaire-calculator", "150m")
+	out, code = e.run("billionaire-charity-calculator", "150m")
 	if code != 1 || !strings.Contains(out, "Usage") {
 		t.Errorf("app usage error: exit %d, output:\n%s", code, out)
 	}
 
 	out, _ = e.run("list")
-	if !strings.Contains(out, "billionaire-calculator") {
+	if !strings.Contains(out, "billionaire-charity-calculator") {
 		t.Errorf("list output:\n%s", out)
 	}
-	out, _ = e.run("info", "billionaire-calculator")
+	out, _ = e.run("info", "billionaire-charity-calculator")
 	if !strings.Contains(out, sha256Hex([]byte(billionaireCalculator(t)))) {
 		t.Errorf("info output:\n%s", out)
 	}
@@ -220,15 +220,15 @@ func TestRunsAppByAlias(t *testing.T) {
 
 func TestForgivesTypos(t *testing.T) {
 	e := newEnv(t, map[string]string{
-		"billionaire-calculator": billionaireCalculator(t),
-		"moon":                   `console.log("moon");`,
+		"billionaire-charity-calculator": billionaireCalculator(t),
+		"moon":                           `console.log("moon");`,
 	})
-	for _, name := range []string{"billionairecalculator", "billionare-calculator"} {
+	for _, name := range []string{"billionairecharitycalculator", "billionare-charity-calculator"} {
 		out, code := e.run(name, "150m", "220bn")
 		if code != 0 || !strings.Contains(out, "0.068%") {
 			t.Errorf("%s: exit %d, output:\n%s", name, code, out)
 		}
-		if name != "billionairecalculator" && !strings.Contains(out, "running billionaire-calculator") {
+		if name != "billionairecharitycalculator" && !strings.Contains(out, "running billionaire-charity-calculator") {
 			t.Errorf("%s: guess not reported:\n%s", name, out)
 		}
 	}
