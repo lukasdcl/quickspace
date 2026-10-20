@@ -98,7 +98,11 @@ version on their next `quick update`.
 
 ## Development
 
-Requires Go 1.24 or later.
+Requires Go 1.24 or later. To try local changes as the real `quick`
+command, run `scripts/dev-install.sh`: it builds `quick` into
+`~/.local/bin`, adds that to your `PATH` if needed and points it at this
+checkout's catalogue. Run it again after each change, and run it with
+`--github` to switch back to the published catalogue.
 
 ```sh
 go test ./...                          # unit and end-to-end tests
