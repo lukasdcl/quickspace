@@ -126,6 +126,9 @@ func (q *quick) dispatch(args []string) error {
 // Commands
 
 func (q *quick) cmdRun(name string, args []string) error {
+	// Phones and habit capitalise names like YouTube; case never tells two
+	// apps apart.
+	name = strings.ToLower(name)
 	if err := catalogue.ValidateName(name); err != nil {
 		return err
 	}
@@ -174,6 +177,7 @@ func (q *quick) cmdList() error {
 }
 
 func (q *quick) cmdInfo(name string) error {
+	name = strings.ToLower(name)
 	if err := catalogue.ValidateName(name); err != nil {
 		return err
 	}

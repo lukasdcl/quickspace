@@ -202,7 +202,7 @@ func TestFollowsPublishedCatalogue(t *testing.T) {
 
 func TestRunsAppByAlias(t *testing.T) {
 	e := newEnv(t, map[string]string{"greet.hello.hi": `console.log("hi " + Deno.args.join(" "));`})
-	for _, name := range []string{"greet", "hello", "hi"} {
+	for _, name := range []string{"greet", "hello", "hi", "Hello"} {
 		out, code := e.run(name, "there")
 		if code != 0 || !strings.Contains(out, "hi there") {
 			t.Errorf("%s: exit %d, output:\n%s", name, code, out)
@@ -254,7 +254,6 @@ func TestRejectsBadNames(t *testing.T) {
 	cases := map[string]string{
 		"no-such-app":   "no app named",
 		"../etc/passwd": "invalid app name",
-		"Upper":         "invalid app name",
 		`a\b`:           "invalid app name",
 		"-x":            "unknown option",
 	}
