@@ -37,3 +37,4 @@ teams	95d7f4883b4011b0df5c3f3ebf0686cbc97411d60fccedcb530f2c293ad34953	Split a l
 timer.countdown	b9128cd69b06131d27d9929a1f35a6c240d1e0cefa045b029ee42539dd7fcbe5	A countdown timer that rings when time is up
 week	0e23c8f83ecf60dab24a3ba2b9478651f3b3b20a03b2eb79d3008d7005d8c503	The week number today or for a date, or the dates of a week
 weekday	ed8e5b64464c0df6f43c87552171148a1c12d81eb6770887a6b59d362d2452c1	The day of the week for any date, past or future
+yt.youtube	171f547b1a14d9eb3a7dc1d5acf08123897d78a086024a9703a583f37f488617	Builds a yt-dlp download command from plain-English choices
